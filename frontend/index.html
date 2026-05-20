@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TrackIN — Dashboard Kurir</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Konfigurasi API — ganti isi config.js kalo mau integrasi backend -->
+  <script src="config.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --accent:    #f78166;
+      --idle:      #3fb950;
+      --delivering:#d29922;
+      --done:      #8b949e;
+    }
+
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: var(--bg); color: var(--text);
+      display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+    }
+
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px; height: 56px;
+      border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0;
+    }
+    .logo { font-family: 'IBM Plex Mono', monospace; font-size: 1.1rem; font-weight: 600; letter-spacing: 0.05em; }
+    .logo span { color: var(--accent); }
+    nav a {
+      color: var(--muted); text-decoration: none; font-size: 0.875rem;
+      margin-left: 20px; padding: 4px 10px; border-radius: 6px; transition: background 0.2s, color 0.2s;
+    }
+    nav a:hover, nav a.active { background: rgba(247,129,102,0.12); color: var(--accent); }
+
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    .sidebar {
+      width: 280px; background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+    }
+    .sidebar-header { padding: 16px; border-bottom: 1px solid var(--border); }
+    .sidebar-header h2 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+
+    .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+    .stat-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 8px; text-align: center; }
+    .stat-box .num { font-family: 'IBM Plex Mono', monospace; font-size: 1.4rem; font-weight: 600; }
+    .stat-box .label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+    .stat-box.idle   .num { color: var(--idle); }
+    .stat-box.deliv  .num { color: var(--delivering); }
+    .stat-box.done   .num { color: var(--done); }
+
+    .legend { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 12px; flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--muted); }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot.idle       { background: var(--idle); }
+    .dot.delivering { background: var(--delivering); }
+    .dot.done       { background: var(--done); }
+
+    .courier-list { overflow-y: auto; flex: 1; padding: 8px; }
+    .courier-list::-webkit-scrollbar { width: 4px; }
+    .courier-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .courier-card {
+      padding: 12px; border-radius: 8px; border: 1px solid var(--border);
+      margin-bottom: 6px; cursor: pointer; transition: border-color 0.2s, background 0.2s;
+    }
+    .courier-card:hover { background: rgba(255,255,255,0.03); border-color: var(--accent); }
+    .courier-card .name { font-size: 0.875rem; font-weight: 600; }
+    .courier-card .coords { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--muted); margin-top: 4px; }
+
+    .badge { display: inline-block; font-size: 0.65rem; font-weight: 600; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 6px; }
+    .badge.IDLE       { background: rgba(63,185,80,0.15);  color: var(--idle); }
+    .badge.DELIVERING { background: rgba(210,153,34,0.15); color: var(--delivering); }
+    .badge.DONE       { background: rgba(139,148,158,0.15);color: var(--done); }
+
+    .map-container { flex: 1; position: relative; }
+    #map { width: 100%; height: 100%; }
+
+    .map-statusbar {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: rgba(13,17,23,0.85); backdrop-filter: blur(8px);
+      border-top: 1px solid var(--border);
+      padding: 8px 16px; display: flex; align-items: center; justify-content: space-between;
+      font-size: 0.75rem; color: var(--muted); z-index: 1000;
+    }
+    .pulse-dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--idle); margin-right: 6px; animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.8); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Track<span>IN</span></div>
+  <nav>
+    <a href="index.html" class="active">🗺 Dashboard</a>
+    <a href="history.html">📍 Riwayat Rute</a>
+  </nav>
+</header>
+
+<div class="main">
+  <aside class="sidebar">
+    <div class="sidebar-header"><h2>Kurir Aktif</h2></div>
+    <div class="stats-row">
+      <div class="stat-box idle">
+        <div class="num" id="count-idle">0</div>
+        <div class="label">Idle</div>
+      </div>
+      <div class="stat-box deliv">
+        <div class="num" id="count-delivering">0</div>
+        <div class="label">Kirim</div>
+      </div>
+      <div class="stat-box done">
+        <div class="num" id="count-done">0</div>
+        <div class="label">Selesai</div>
+      </div>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><span class="dot idle"></span> Idle</div>
+      <div class="legend-item"><span class="dot delivering"></span> Delivering</div>
+      <div class="legend-item"><span class="dot done"></span> Done</div>
+    </div>
+    <div class="courier-list" id="courier-list">
+      <p style="padding:16px;font-size:0.8rem;color:var(--muted)">Memuat data kurir...</p>
+    </div>
+  </aside>
+
+  <div class="map-container">
+    <div id="map"></div>
+    <div class="map-statusbar">
+      <span><span class="pulse-dot"></span>Live — update tiap <strong>5 detik</strong></span>
+      <span id="last-update">Belum ada data</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const STATUS_COLOR = { IDLE: "#3fb950", DELIVERING: "#d29922", DONE: "#8b949e" };
+
+// Map Initialization
+const map = L.map("map").setView([-6.2, 106.816], 12);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: "© OpenStreetMap contributors", maxZoom: 19
+}).addTo(map);
+
+const markers = {};
+
+// Marker Icon sesuai sama status
+function createIcon(status) {
+  const color = STATUS_COLOR[status] || "#8b949e";
+  return L.divIcon({
+    className: "",
+    html: `<div style="width:16px;height:16px;background:${color};border:2px solid white;border-radius:50%;box-shadow:0 0 0 3px ${color}44"></div>`,
+    iconSize: [16, 16], iconAnchor: [8, 8], popupAnchor: [0, -10]
+  });
+}
+
+// Fetch dari API (CONFIG.API_BASE dari config.js)
+async function fetchCourierLocations() {
+  const response = await fetch(`${CONFIG.API_BASE}/couriers/locations`);
+  if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+  return response.json();
+}
+
+function updateMap(couriers) {
+  const counts = { IDLE: 0, DELIVERING: 0, DONE: 0 };
+
+  couriers.forEach(({ courier_id, name, latitude, longitude, status }) => {
+    counts[status] = (counts[status] || 0) + 1;
+
+    if (markers[courier_id]) {
+      markers[courier_id].setLatLng([latitude, longitude]);
+      markers[courier_id].setIcon(createIcon(status));
+    } else {
+      const marker = L.marker([latitude, longitude], { icon: createIcon(status) }).addTo(map);
+      marker.bindPopup(`
+        <div style="font-family:'IBM Plex Sans',sans-serif;min-width:160px">
+          <strong>${name}</strong><br>
+          <span style="font-size:0.75rem;color:#8b949e">ID: ${courier_id}</span><br>
+          <span style="font-size:0.75rem">Status: <b>${status}</b></span><br>
+          <a href="history.html?id=${courier_id}&name=${encodeURIComponent(name)}"
+             style="display:inline-block;margin-top:6px;font-size:0.75rem;color:#f78166">
+            Lihat Riwayat Rute →
+          </a>
+        </div>
+      `);
+      markers[courier_id] = marker;
+    }
+  });
+
+  // Hapus marker kurir yang sudah tidak aktif
+  const activeIds = new Set(couriers.map(k => k.courier_id));
+  Object.keys(markers).forEach(id => {
+    if (!activeIds.has(id)) { map.removeLayer(markers[id]); delete markers[id]; }
+  });
+
+  document.getElementById("count-idle").textContent       = counts.IDLE || 0;
+  document.getElementById("count-delivering").textContent = counts.DELIVERING || 0;
+  document.getElementById("count-done").textContent       = counts.DONE || 0;
+}
+
+function updateSidebar(couriers) {
+  const list = document.getElementById("courier-list");
+  list.innerHTML = "";
+  couriers.forEach(kurir => {
+    const card = document.createElement("div");
+    card.className = "courier-card";
+    card.innerHTML = `
+      <div class="name">${kurir.name}</div>
+      <div class="coords">${kurir.latitude.toFixed(5)}, ${kurir.longitude.toFixed(5)}</div>
+      <span class="badge ${kurir.status}">${kurir.status}</span>
+    `;
+    card.addEventListener("click", () => {
+      map.setView([kurir.latitude, kurir.longitude], 15);
+      markers[kurir.courier_id]?.openPopup();
+    });
+    list.appendChild(card);
+  });
+}
+
+async function refreshData() {
+  try {
+    const couriers = await fetchCourierLocations();
+    updateMap(couriers);
+    updateSidebar(couriers);
+    const now = new Date().toLocaleTimeString("id-ID");
+    document.getElementById("last-update").textContent = `Update terakhir: ${now}`;
+  } catch (err) {
+    console.warn("API tidak tersedia:", err.message);
+  }
+}
+
+refreshData();
+setInterval(refreshData, CONFIG.POLLING_INTERVAL);
+</script>
+</body>
+</html>
