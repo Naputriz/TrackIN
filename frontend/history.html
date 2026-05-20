@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TrackIN — Riwayat Rute</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Konfigurasi API — ganti isi config.js kalo mau integrasi backend -->
+  <script src="config.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --surface: #161b22; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --accent: #f78166;
+    }
+    body { font-family: 'IBM Plex Sans', sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+    header { display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 56px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+    .logo { font-family: 'IBM Plex Mono', monospace; font-size: 1.1rem; font-weight: 600; letter-spacing: 0.05em; }
+    .logo span { color: var(--accent); }
+    nav a { color: var(--muted); text-decoration: none; font-size: 0.875rem; margin-left: 20px; padding: 4px 10px; border-radius: 6px; transition: background 0.2s, color 0.2s; }
+    nav a:hover, nav a.active { background: rgba(247,129,102,0.12); color: var(--accent); }
+
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    .panel { width: 300px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
+    .panel-header { padding: 16px; border-bottom: 1px solid var(--border); }
+    .panel-header h2 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+
+    .filter-form { padding: 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+    .filter-form label { font-size: 0.75rem; color: var(--muted); margin-bottom: 3px; display: block; }
+    .filter-form input {
+      width: 100%; background: var(--bg); border: 1px solid var(--border);
+      color: var(--text); padding: 8px 10px; border-radius: 6px;
+      font-size: 0.8rem; font-family: 'IBM Plex Mono', monospace; transition: border-color 0.2s;
+    }
+    .filter-form input:focus { outline: none; border-color: var(--accent); }
+    .btn-load { background: var(--accent); color: #0d1117; border: none; padding: 10px; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: opacity 0.2s; }
+    .btn-load:hover { opacity: 0.85; }
+    .btn-load:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .timeline { overflow-y: auto; flex: 1; padding: 12px; }
+    .timeline::-webkit-scrollbar { width: 4px; }
+    .timeline::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .timeline-empty { padding: 20px; text-align: center; color: var(--muted); font-size: 0.8rem; }
+
+    .tl-item { display: flex; gap: 10px; cursor: pointer; transition: background 0.15s; border-radius: 4px; padding: 8px; border-bottom: 1px solid var(--border); }
+    .tl-item:hover { background: rgba(255,255,255,0.03); }
+    .tl-num { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--muted); min-width: 24px; padding-top: 2px; text-align: center; }
+    .tl-time { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--accent); }
+    .tl-coords { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+
+    .route-info { padding: 12px 16px; border-top: 1px solid var(--border); font-size: 0.78rem; display: none; }
+    .route-info.visible { display: block; }
+    .route-info .ri-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .route-info .ri-label { color: var(--muted); }
+    .route-info .ri-val { font-family: 'IBM Plex Mono', monospace; }
+
+    .map-container { flex: 1; position: relative; }
+    #map { width: 100%; height: 100%; }
+
+    .loading-overlay { position: absolute; inset: 0; background: rgba(13,17,23,0.75); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; pointer-events: none; opacity: 0; transition: opacity 0.3s; }
+    .loading-overlay.show { opacity: 1; pointer-events: all; }
+    .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Track<span>IN</span></div>
+  <nav>
+    <a href="index.html">🗺 Dashboard</a>
+    <a href="history.html" class="active">📍 Riwayat Rute</a>
+  </nav>
+</header>
+
+<div class="main">
+  <aside class="panel">
+    <div class="panel-header"><h2>Filter Riwayat</h2></div>
+    <div class="filter-form">
+      <div>
+        <label>ID Kurir</label>
+        <input type="text" id="input-courier-id" placeholder="Contoh: KR-001"/>
+      </div>
+      <div>
+        <label>Dari (tanggal & waktu)</label>
+        <input type="datetime-local" id="input-start"/>
+      </div>
+      <div>
+        <label>Sampai (tanggal & waktu)</label>
+        <input type="datetime-local" id="input-end"/>
+      </div>
+      <button class="btn-load" id="btn-load" onclick="loadHistory()">Tampilkan Rute</button>
+    </div>
+    <div class="timeline" id="timeline">
+      <div class="timeline-empty">Pilih kurir & rentang waktu,<br>lalu klik "Tampilkan Rute"</div>
+    </div>
+    <div class="route-info" id="route-info">
+      <div class="ri-row"><span class="ri-label">Total titik</span><span class="ri-val" id="ri-points">—</span></div>
+      <div class="ri-row"><span class="ri-label">Durasi</span><span class="ri-val" id="ri-duration">—</span></div>
+      <div class="ri-row"><span class="ri-label">Pertama</span><span class="ri-val" id="ri-first">—</span></div>
+      <div class="ri-row"><span class="ri-label">Terakhir</span><span class="ri-val" id="ri-last">—</span></div>
+    </div>
+  </aside>
+
+  <div class="map-container">
+    <div id="map"></div>
+    <div class="loading-overlay" id="loading"><div class="spinner"></div></div>
+  </div>
+</div>
+
+<script>
+let routeLayer = null, markerStart = null, markerEnd = null, dotMarkers = [];
+
+// Inisialisasi peta
+const map = L.map("map").setView([-6.2, 106.816], 12);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: "© OpenStreetMap contributors", maxZoom: 19
+}).addTo(map);
+
+// Baca query param dari link dashboard (history.html?id=KR-001)
+const params = new URLSearchParams(window.location.search);
+if (params.get("id")) document.getElementById("input-courier-id").value = params.get("id");
+
+// Default rentang waktu: 1 jam terakhir
+const now = new Date(), hour = new Date(now - 3600_000);
+document.getElementById("input-end").value   = toLocalDatetimeInput(now);
+document.getElementById("input-start").value = toLocalDatetimeInput(hour);
+
+function toLocalDatetimeInput(d) { return d.toISOString().slice(0, 16); }
+
+async function loadHistory() {
+  const courierId = document.getElementById("input-courier-id").value.trim();
+  const start     = document.getElementById("input-start").value;
+  const end       = document.getElementById("input-end").value;
+
+  if (!courierId) { alert("Masukkan ID kurir dulu!"); return; }
+  if (!start || !end) { alert("Lengkapi rentang waktu!"); return; }
+
+  showLoading(true);
+  clearRoute();
+
+  try {
+    // Fetch ke GET /couriers/{id}/history?start=...&end=...
+    const url = `${CONFIG.API_BASE}/couriers/${courierId}/history`
+              + `?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const history = await resp.json();
+    if (history.length === 0) { alert("Tidak ada data untuk rentang waktu ini."); return; }
+    drawRoute(history);
+    buildTimeline(history);
+  } catch (err) {
+    console.warn("API tidak tersedia:", err.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+function drawRoute(history) {
+  const coords = history.map(p => [p.latitude, p.longitude]);
+
+  routeLayer = L.polyline(coords, { color: "#f78166", weight: 3, opacity: 0.8, lineJoin: "round" }).addTo(map);
+
+  history.forEach((point, i) => {
+    const dot = L.circleMarker([point.latitude, point.longitude], {
+      radius: 4, color: "#f78166", fillColor: "#161b22", fillOpacity: 1, weight: 2
+    }).addTo(map);
+    dot.bindPopup(`
+      <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.8rem">
+        <b>Titik #${i + 1}</b><br>
+        ${formatTime(point.timestamp)}<br>
+        ${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}<br>
+        Status: <b>${point.status}</b>
+      </div>
+    `);
+    dotMarkers.push(dot);
+  });
+
+  const first = history[0], last = history[history.length - 1];
+  markerStart = L.marker([first.latitude, first.longitude], {
+    icon: L.divIcon({ className: "", html: `<div style="background:#3fb950;color:#0d1117;font-size:0.65rem;font-weight:700;padding:3px 7px;border-radius:12px;white-space:nowrap;box-shadow:0 2px 8px #0006">▶ MULAI</div>`, iconAnchor: [28, 12] })
+  }).addTo(map);
+  markerEnd = L.marker([last.latitude, last.longitude], {
+    icon: L.divIcon({ className: "", html: `<div style="background:#f78166;color:#0d1117;font-size:0.65rem;font-weight:700;padding:3px 7px;border-radius:12px;white-space:nowrap;box-shadow:0 2px 8px #0006">■ AKHIR</div>`, iconAnchor: [28, 12] })
+  }).addTo(map);
+
+  map.fitBounds(routeLayer.getBounds(), { padding: [40, 40] });
+  updateRouteInfo(history);
+}
+
+function buildTimeline(history) {
+  const tl = document.getElementById("timeline");
+  tl.innerHTML = "";
+  history.forEach((point, i) => {
+    const item = document.createElement("div");
+    item.className = "tl-item";
+    item.innerHTML = `
+      <div class="tl-num">${i + 1}</div>
+      <div class="tl-info">
+        <div class="tl-time">${formatTime(point.timestamp)}</div>
+        <div class="tl-coords">${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}</div>
+      </div>
+    `;
+    item.addEventListener("click", () => {
+      map.setView([point.latitude, point.longitude], 16);
+      dotMarkers[i]?.openPopup();
+    });
+    tl.appendChild(item);
+  });
+}
+
+function updateRouteInfo(history) {
+  document.getElementById("route-info").classList.add("visible");
+  const first = new Date(history[0].timestamp), last = new Date(history[history.length - 1].timestamp);
+  const diffMin = Math.round((last - first) / 60000);
+  document.getElementById("ri-points").textContent   = history.length;
+  document.getElementById("ri-duration").textContent = diffMin >= 60 ? `${Math.floor(diffMin/60)}j ${diffMin%60}m` : `${diffMin} menit`;
+  document.getElementById("ri-first").textContent    = formatTime(history[0].timestamp);
+  document.getElementById("ri-last").textContent     = formatTime(history[history.length - 1].timestamp);
+}
+
+function clearRoute() {
+  if (routeLayer)  { map.removeLayer(routeLayer);  routeLayer  = null; }
+  if (markerStart) { map.removeLayer(markerStart); markerStart = null; }
+  if (markerEnd)   { map.removeLayer(markerEnd);   markerEnd   = null; }
+  dotMarkers.forEach(m => map.removeLayer(m)); dotMarkers = [];
+  document.getElementById("timeline").innerHTML = `<div class="timeline-empty">Memuat riwayat...</div>`;
+  document.getElementById("route-info").classList.remove("visible");
+}
+
+function showLoading(on) {
+  document.getElementById("loading").classList.toggle("show", on);
+  document.getElementById("btn-load").disabled = on;
+}
+
+function formatTime(ts) {
+  return new Date(ts).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+</script>
+</body>
+</html>
