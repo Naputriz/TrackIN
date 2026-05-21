@@ -3,6 +3,41 @@
 
 TrackIN adalah aplikasi pemantauan kurir logistik secara real-time yang terinspirasi dari arsitektur Gojek real-time driver location tracking. Sistem ini menggunakan **FastAPI** di backend, **Apache Cassandra (DataStax Astra DB)** sebagai database penyimpanan data berkabel time-series berkapasitas tinggi, **Python Script** untuk simulator GPS kurir, dan **HTML + Leaflet.js** di frontend untuk dashboard peta interaktif.
 
+## Tech Stack
+- **Backend**: FastAPI (Python), Uvicorn
+- **Database**: Apache Cassandra (DataStax Astra DB)
+- **Frontend**: HTML5, CSS3, JavaScript (Vanilla), Leaflet.js
+- **Simulator**: Python Script (GPS Simulation)
+
+## Arsitektur Sistem
+Sistem ini menggunakan arsitektur client-server dengan aliran data utama sebagai berikut:
+
+| Komponen | Teknologi | Fungsi |
+|-----------|------------------|---------------------------------|
+| Database | Apache Cassandra | Simpan data lokasi real-time |
+| Backend | FastAPI (Python) | menerima dan memproses request, lalu menyimpannya ke **Apache Cassandra (Astra DB)**. |
+| Frontend | Leaflet.js | Mengambil data dari Backend secara real-time maupun riwayat historis untuk divisualisasikan pada peta interaktif. |
+| Simulasi | Python Script | mensimulasikan pergerakan kurir dan mengirimkan data lokasi secara berkala ke Backend melalui REST API. |
+## Diagram Arsitektur Sistem
+
+
+## Struktur Folder
+```text
+TrackIN/
+├── backend/
+│   ├── config.py           # Konfigurasi kredensial dan environment (Astra DB)
+│   ├── database.py         # Inisialisasi koneksi database Cassandra
+│   ├── main.py             # Entry point backend dan routing API FastAPI
+│   └── requirements.txt    # Daftar pusta/referensi Python backend
+├── frontend/
+│   ├── config.js           # Konfigurasi hostname/URL endpoint API
+│   ├── history.html        # UI Dashboard riwayat perjalanan kurir
+│   ├── index.html          # UI Dashboard utama live tracking (Leaflet.js)
+│   └── mock-server.js      # Mock server untuk testing/offline mode
+├── simulator.py            # Script generator data lokasi kurir real-time GPS
+└── README.md               # Dokumentasi aplikasi
+```
+
 ## Cara Menjalankan Aplikasi
 
 Pastikan Anda memiliki Python 3.10+ terinstal di sistem operasi Anda (Windows/macOS/Linux).
