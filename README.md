@@ -18,7 +18,9 @@ Sistem ini menggunakan arsitektur client-server dengan aliran data utama sebagai
 | Backend | FastAPI (Python) | menerima dan memproses request, lalu menyimpannya ke **Apache Cassandra (Astra DB)**. |
 | Frontend | Leaflet.js | Mengambil data dari Backend secara real-time maupun riwayat historis untuk divisualisasikan pada peta interaktif. |
 | Simulasi | Python Script | mensimulasikan pergerakan kurir dan mengirimkan data lokasi secara berkala ke Backend melalui REST API. |
+
 ## Diagram Arsitektur Sistem
+<img width="2469" height="899" alt="trackin-system" src="https://github.com/user-attachments/assets/5316be35-c2c2-4bed-8454-547d4947fb34" />
 
 
 ## Struktur Folder
