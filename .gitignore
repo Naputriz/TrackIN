@@ -1,0 +1,16 @@
+# Compiled Python files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environments
+.env
+env/
+venv/
+ENV/
+
+# Project Specific
+backend/secure-connect-bundle.zip
+backend/test_get_history.py
+backend/test_get_locations.py
