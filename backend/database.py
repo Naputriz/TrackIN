@@ -19,49 +19,58 @@ from cassandra.cluster import Cluster
 from cassandra.auth import PlainTextAuthProvider
 from config import ASTRA_DB_CLIENT_ID, ASTRA_DB_CLIENT_SECRET, ASTRA_DB_KEYSPACE, download_secure_connect_bundle
 
-# --- Static Courier Mapping ---
-# Digunakan untuk memberikan nama (Name) pada kurir agar dashboard Radya bisa menampilkan nama kurir yang bersahabat
-# (misal: KR-001 -> Andi Wijaya) alih-alih hanya UUID rumit.
+# --- Dynamic Courier Mapping ---
+# Digunakan untuk memberikan nama dan melacak UUID kurir.
+# Map ini akan otomatis bertambah saat ada request masuk dari kurir baru.
 COURIER_MAP = {
-    "KR-001": {"name": "Andi Wijaya", "uuid": uuid.uuid5(uuid.NAMESPACE_DNS, "KR-001")},
-    "KR-002": {"name": "Sari Dewi", "uuid": uuid.uuid5(uuid.NAMESPACE_DNS, "KR-002")},
-    "KR-003": {"name": "Budi Santoso", "uuid": uuid.uuid5(uuid.NAMESPACE_DNS, "KR-003")},
-    "KR-004": {"name": "Rina Kusuma", "uuid": uuid.uuid5(uuid.NAMESPACE_DNS, "KR-004")},
-    "KR-005": {"name": "Deni Pratama", "uuid": uuid.uuid5(uuid.NAMESPACE_DNS, "KR-005")},
-}
-
-# Mapping sebaliknya (dari UUID ke String ID & Nama) untuk mempermudah mapping data saat query dari Cassandra
-UUID_TO_COURIER = {
-    v["uuid"]: {"name": v["name"], "code": k} for k, v in COURIER_MAP.items()
+    "KR-001": {"name": "Andi Wijaya", "uuid": uuid.uuid5(uuid.NAMESPACE_DNS, "KR-001"), "code": "KR-001"},
+    "KR-002": {"name": "Sari Dewi", "uuid": uuid.uuid5(uuid.NAMESPACE_DNS, "KR-002"), "code": "KR-002"},
+    "KR-003": {"name": "Budi Santoso", "uuid": uuid.uuid5(uuid.NAMESPACE_DNS, "KR-003"), "code": "KR-003"},
+    "KR-004": {"name": "Rina Kusuma", "uuid": uuid.uuid5(uuid.NAMESPACE_DNS, "KR-004"), "code": "KR-004"},
+    "KR-005": {"name": "Deni Pratama", "uuid": uuid.uuid5(uuid.NAMESPACE_DNS, "KR-005"), "code": "KR-005"},
 }
 
 def get_courier_uuid(courier_id_str: str) -> uuid.UUID:
     """
     Mengonversi string ID kurir (misal: 'KR-001') secara deterministik menjadi UUID.
-    Jika input sudah berupa UUID yang valid, langsung mengembalikannya sebagai tipe UUID.
+    Jika kurir belum ada di COURIER_MAP, maka akan didaftarkan secara otomatis (Dynamic Registration).
     """
     try:
         # Cek jika input sudah berwujud UUID string yang valid
         return uuid.UUID(courier_id_str)
     except ValueError:
-        # Jika bukan UUID (misal 'KR-001'), buat UUID unik deterministik
-        if courier_id_str in COURIER_MAP:
-            return COURIER_MAP[courier_id_str]["uuid"]
-        return uuid.uuid5(uuid.NAMESPACE_DNS, courier_id_str)
+        pass
+
+    # Registrasi Otomatis jika kurir baru pertama kali mengirim data
+    if courier_id_str not in COURIER_MAP:
+        new_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, courier_id_str)
+        # Pisahkan angka dari string (misal KR-060) untuk memberi nama otomatis yang rapi
+        name = f"Kurir {courier_id_str.replace('KR-', '')}"
+        COURIER_MAP[courier_id_str] = {
+            "name": name,
+            "uuid": new_uuid,
+            "code": courier_id_str
+        }
+        print(f"[*] Registered new courier dynamically: {name} ({courier_id_str})")
+        
+    return COURIER_MAP[courier_id_str]["uuid"]
 
 def get_courier_info(courier_uuid: uuid.UUID) -> dict:
     """
     Mendapatkan info kode kurir dan nama berdasarkan objek UUID.
     """
-    if courier_uuid in UUID_TO_COURIER:
-        return UUID_TO_COURIER[courier_uuid]
+    # Cari di dictionary values
+    for info in COURIER_MAP.values():
+        if info["uuid"] == courier_uuid:
+            return info
     
-    # Fallback jika UUID tidak terdaftar di mapping static kita
+    # Fallback jika UUID tidak terdaftar (hampir tidak mungkin karena selalu didaftarkan)
     short_uuid = str(courier_uuid)[:8]
     return {
         "name": f"Kurir ({short_uuid})",
         "code": str(courier_uuid)
     }
+
 
 # --- Inisialisasi Koneksi Cassandra / Astra DB ---
 session = None
