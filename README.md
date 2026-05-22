@@ -77,6 +77,21 @@ Pastikan Anda memiliki Python 3.10+ terinstal di sistem operasi Anda (Windows/ma
 
 ---
 
+## Eksperimen: NoSQL vs SQL (Benchmark Insert)
+
+Sebagai bagian dari eksplorasi teknologi, kami melakukan benchmark perbandingan performa insert antara **Apache Cassandra** dan **PostgreSQL** menggunakan data simulasi lokasi kurir.
+
+Pengujian dilakukan dengan menginsert data lokasi kurir secara massal menggunakan concurrent writes pada Cassandra dan `executemany` pada PostgreSQL. Hasil eksperimen menunjukkan bahwa **Cassandra unggul dalam throughput insert** dibandingkan PostgreSQL:
+
+| Database | Waktu | Throughput |
+|---|---|---|
+| PostgreSQL | 0.09 detik | 5.779 insert/detik |
+| Cassandra | 0.06 detik | 8.101 insert/detik |
+
+Cassandra mampu mengungguli PostgreSQL berkat arsitektur **distributed writes** dan **concurrent execution**-nya yang dirancang khusus untuk menangani data time-series bervolume tinggi. Hal ini memperkuat keputusan kami memilih Apache Cassandra sebagai database utama TrackIN untuk menyimpan data lokasi kurir secara real-time.
+
+---
+
 ## Deklarasi Penggunaan AI (Academic Integrity)
 Kami menyatakan bahwa dalam pengerjaan backend FastAPI dan GPS Simulator ini, kami berkonsultasi dengan asisten AI **Antigravity** untuk:
 * Patch kecocokan Python 3.12+ (`pyasyncore`) untuk driver Cassandra.

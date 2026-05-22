@@ -3,7 +3,7 @@ const url  = require("url");
 
 const PORT = 8787;
 
-// ── Data kurir (disimpan di memori, bergerak tiap request) ──
+// data kurir (disimpan di memori, bergerak tiap request)
 const couriers = [
   { courier_id: "KR-001", name: "Andi Wijaya",  latitude: -6.2000, longitude: 106.8167, status: "DELIVERING" },
   { courier_id: "KR-002", name: "Sari Dewi",    latitude: -6.2150, longitude: 106.8300, status: "IDLE" },
@@ -12,7 +12,7 @@ const couriers = [
   { courier_id: "KR-005", name: "Deni Pratama", latitude: -6.2080, longitude: 106.8450, status: "IDLE" },
 ];
 
-// Simulasi pergerakan kurir tiap kali di-fetch
+// simulasi pergerakan kurir tiap kali di-fetch
 function moveCouriers() {
   couriers.forEach(k => {
     if (k.status !== "DONE") {
@@ -22,7 +22,7 @@ function moveCouriers() {
   });
 }
 
-// Generate riwayat rute dummy untuk satu kurir
+// generate riwayat rute dummy untuk satu kurir
 function generateHistory(courierId, start, end) {
   const courier = couriers.find(k => k.courier_id === courierId);
   const points  = [];
@@ -48,9 +48,9 @@ function generateHistory(courierId, start, end) {
   return points;
 }
 
-// ── HTTP Server ──
+// http server
 const server = http.createServer((req, res) => {
-  // CORS header — wajib agar browser tidak blokir request dari Live Server
+  // CORS header, agar browser tidak blokir request dari Live Server
   res.setHeader("Access-Control-Allow-Origin",  "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -65,7 +65,7 @@ const server = http.createServer((req, res) => {
 
   console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${pathname}`);
 
-  // ── GET /couriers/locations ──
+  // GET /couriers/locations 
   if (req.method === "GET" && pathname === "/couriers/locations") {
     moveCouriers();
     res.writeHead(200);
@@ -73,7 +73,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── GET /couriers/:id/history ──
+  // GET /couriers/:id/history
   const histMatch = pathname.match(/^\/couriers\/([^/]+)\/history$/);
   if (req.method === "GET" && histMatch) {
     const courierId = histMatch[1];
@@ -83,7 +83,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── POST /couriers/location ──
+  // POST /couriers/location
   if (req.method === "POST" && pathname === "/couriers/location") {
     let body = "";
     req.on("data", chunk => body += chunk);
@@ -107,7 +107,6 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── 404 ──
   res.writeHead(404);
   res.end(JSON.stringify({ error: "Endpoint tidak ditemukan" }));
 });

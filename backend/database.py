@@ -2,9 +2,6 @@ import sys
 import uuid
 import os
 
-# --- Compatibility Patch untuk Python 3.12+ ---
-# Driver Cassandra membutuhkan modul 'asyncore' yang sudah dihapus sejak Python 3.12.
-# Kita melakukan patch dinamis menggunakan library 'pyasyncore' yang sudah di-install.
 try:
     import asyncore
 except ImportError:
@@ -19,9 +16,6 @@ from cassandra.cluster import Cluster
 from cassandra.auth import PlainTextAuthProvider
 from config import ASTRA_DB_CLIENT_ID, ASTRA_DB_CLIENT_SECRET, ASTRA_DB_KEYSPACE, download_secure_connect_bundle
 
-# --- Dynamic Courier Mapping ---
-# Digunakan untuk memberikan nama dan melacak UUID kurir.
-# Map ini akan otomatis bertambah saat ada request masuk dari kurir baru.
 COURIER_MAP = {
     "KR-001": {"name": "Andi Wijaya", "uuid": uuid.uuid5(uuid.NAMESPACE_DNS, "KR-001"), "code": "KR-001"},
     "KR-002": {"name": "Sari Dewi", "uuid": uuid.uuid5(uuid.NAMESPACE_DNS, "KR-002"), "code": "KR-002"},
@@ -36,12 +30,11 @@ def get_courier_uuid(courier_id_str: str) -> uuid.UUID:
     Jika kurir belum ada di COURIER_MAP, maka akan didaftarkan secara otomatis (Dynamic Registration).
     """
     try:
-        # Cek jika input sudah berwujud UUID string yang valid
         return uuid.UUID(courier_id_str)
     except ValueError:
         pass
 
-    # Registrasi Otomatis jika kurir baru pertama kali mengirim data
+    # registrasi Otomatis jika kurir baru pertama kali mengirim data
     if courier_id_str not in COURIER_MAP:
         new_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, courier_id_str)
         # Pisahkan angka dari string (misal KR-060) untuk memberi nama otomatis yang rapi
@@ -59,12 +52,12 @@ def get_courier_info(courier_uuid: uuid.UUID) -> dict:
     """
     Mendapatkan info kode kurir dan nama berdasarkan objek UUID.
     """
-    # Cari di dictionary values
+    # cari di dictionary values
     for info in COURIER_MAP.values():
         if info["uuid"] == courier_uuid:
             return info
     
-    # Fallback jika UUID tidak terdaftar (hampir tidak mungkin karena selalu didaftarkan)
+    # fallback jika UUID tidak terdaftar (hampir tidak mungkin karena selalu didaftarkan)
     short_uuid = str(courier_uuid)[:8]
     return {
         "name": f"Kurir ({short_uuid})",
@@ -72,7 +65,7 @@ def get_courier_info(courier_uuid: uuid.UUID) -> dict:
     }
 
 
-# --- Inisialisasi Koneksi Cassandra / Astra DB ---
+# Inisialisasi Koneksi Cassandra / Astra DB 
 session = None
 cluster = None
 
@@ -83,30 +76,25 @@ def get_cassandra_session():
     """
     global session, cluster
     
-    # Jika session sudah aktif, langsung kembalikan
+    # jika session sudah aktif, langsung kembalikan
     if session is not None:
         return session
 
-    # 1. Pastikan Secure Connect Bundle sudah didownload
     bundle_path = download_secure_connect_bundle()
     if not bundle_path:
         raise RuntimeError("[-] Tidak dapat menghubungkan ke Astra DB karena Secure Connect Bundle tidak ditemukan.")
 
     print("[*] Menghubungkan ke Astra DB (Apache Cassandra)...")
     try:
-        # 2. Konfigurasi Cloud config dengan Secure Connect Bundle
         cloud_config = {
             'secure_connect_bundle': bundle_path
         }
         
-        # 3. Konfigurasi Auth Provider menggunakan Client ID dan Secret Astra DB
         auth_provider = PlainTextAuthProvider(ASTRA_DB_CLIENT_ID, ASTRA_DB_CLIENT_SECRET)
         
-        # 4. Hubungkan Cluster
         cluster = Cluster(cloud=cloud_config, auth_provider=auth_provider)
         session = cluster.connect()
         
-        # 5. Set Keyspace aktif
         session.set_keyspace(ASTRA_DB_KEYSPACE)
         print(f"[+] Berhasil terhubung ke keyspace Astra DB: '{ASTRA_DB_KEYSPACE}'!")
         

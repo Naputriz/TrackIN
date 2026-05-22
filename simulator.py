@@ -102,7 +102,6 @@ def simulate_gps():
             except Exception as e:
                 print(f"  [!] [Koneksi Error] Gagal menghubungi backend untuk {courier['name']}: {e}")
 
-        # Tunggu 5 detik sebelum mengirim update posisi berikutnya (meniru Gojek nyata!)
         step += 1
         time.sleep(5)
 
